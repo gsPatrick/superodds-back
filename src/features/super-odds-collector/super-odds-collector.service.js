@@ -4,20 +4,14 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const moment = require('moment-timezone');
 const telegramNotifierService = require('../telegram-notifier/telegram-notifier.service');
-// IMPORTAÇÃO CORRETA E ÚNICA FONTE DA VERDADE
 const SUPER_ODDS_AFFILIATED_PROVIDERS = require('../constants/superOddsProviders');
 
 const SUPER_ODDS_API_URL = 'https://api.craquestats.com.br/api/super_odds';
 
-// Função de utilidade para pausar a execução
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * Busca as super odds da API externa e as salva no banco de dados.
- * @returns {Promise<number>} O número de super odds salvas/atualizadas.
- */
 async function fetchAndSaveSuperOdds() {
   try {
     console.log('[SuperOddsCollectorService] Buscando super odds da CraqueStats API...');
@@ -34,15 +28,15 @@ async function fetchAndSaveSuperOdds() {
           const gameTimestamp = moment.unix(superOdd.game_timestamp).toDate();
           const expireAtTimestamp = moment.unix(superOdd.expire_at_timestamp).toDate();
 
-          if (new Date() >= expireAtTimestamp) {
-            continue;
-          }
+          // MUDANÇA: Não vamos mais pular as expiradas aqui, a API precisa delas.
+          // A lógica de pular será feita apenas na busca se o filtro for ativado.
+          // if (new Date() >= expireAtTimestamp) {
+          //   continue;
+          // }
 
-          // Usa o mapa de constantes para verificar se o provedor é um dos nossos afiliados
           const affiliatedProviderInfo = SUPER_ODDS_AFFILIATED_PROVIDERS[superOdd.provider_id];
           
           if (!affiliatedProviderInfo) {
-              // Esta mensagem de log agora é crucial para ver quais casas estão sendo ignoradas.
               console.warn(`[SuperOddsCollectorService] Provedor '${superOdd.provider_id}' não está na lista de afiliados. Pulando super odd.`);
               continue;
           }
@@ -82,7 +76,7 @@ async function fetchAndSaveSuperOdds() {
               gameTimestamp: gameTimestamp,
               expireAtTimestamp: expireAtTimestamp,
             });
-            console.log(`[SuperOddsCollectorService] Super odd ${superOdd.unique_key} atualizada.`);
+            // console.log(`[SuperOddsCollectorService] Super odd ${superOdd.unique_key} atualizada.`); // Log opcional
           } else {
             console.log(`[SuperOddsCollectorService] Nova super odd salva: ${superOdd.unique_key}`);
             await telegramNotifierService.sendSuperOddAlert(dbSuperOdd);
@@ -115,17 +109,15 @@ async function fetchAndSaveSuperOdds() {
 }
 
 /**
- * Retorna as super odds mais recentes do banco de dados, aplicando filtros e ordenação.
- * @param {Object} filters - Objeto contendo os filtros.
- * @param {string} [filters.provider] - Nome do provedor para filtrar.
- * @param {number} [filters.maxOdd] - Odd máxima permitida.
- * @param {string} [filters.sortBy] - Critério de ordenação ('boosted_desc', 'boosted_asc', 'expire_asc', 'expire_desc').
- * @param {boolean} [filters.hideExpired=true] - Se true, oculta odds já expiradas.
- * @param {number} [limit] - Limite de resultados.
+ * Retorna as super odds do banco de dados com filtros.
+ * @param {Object} filters - Objeto de filtros.
+ * @param {number} [limit] - Limite de resultados (opcional).
  * @returns {Promise<Array>} Lista de objetos SuperOdd.
  */
-async function getLatestSuperOdds(filters = {}, limit = 20) {
-  const { provider, maxOdd, sortBy, hideExpired = true } = filters;
+// MUDANÇA: Removido o 'limit = 20' padrão
+async function getLatestSuperOdds(filters = {}, limit) { 
+  // MUDANÇA: 'hideExpired' agora é 'false' por padrão
+  const { provider, maxOdd, sortBy, hideExpired = false } = filters; 
   const whereClause = {};
   const orderClause = [];
 
@@ -144,6 +136,7 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
     };
   }
 
+  // A lógica de filtro agora só é aplicada se `hideExpired` for explicitamente `true`
   if (hideExpired) {
     whereClause.expireAtTimestamp = {
       [Op.gt]: new Date(),
@@ -170,7 +163,9 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
         orderClause.push(['expireAtTimestamp', 'DESC']);
         break;
     default:
-      orderClause.push(['expireAtTimestamp', 'ASC']);
+      // MUDANÇA: Ordenação padrão alterada para mostrar as que expiram mais tarde primeiro,
+      // garantindo que as ativas e relevantes apareçam no topo.
+      orderClause.push(['expireAtTimestamp', 'DESC']);
       orderClause.push(['boostedOdd', 'DESC']);
       break;
   }
@@ -179,7 +174,8 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
     const superOdds = await db.SuperOdd.findAll({
       where: whereClause,
       order: orderClause,
-      limit: parseInt(limit),
+      // MUDANÇA: O 'limit' só será aplicado se for passado um valor
+      limit: limit ? parseInt(limit) : undefined,
     });
     return superOdds;
   } catch (error) {
@@ -188,17 +184,12 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
   }
 }
 
-/**
- * Retorna uma lista de todas as casas de apostas afiliadas configuradas.
- * @returns {Array<{id: string, name: string}>} Lista de provedores.
- */
 function getAffiliatedProvidersList() {
     return Object.entries(SUPER_ODDS_AFFILIATED_PROVIDERS).map(([id, data]) => ({
         id: id,
         name: data.name
     }));
 }
-
 
 module.exports = {
   fetchAndSaveSuperOdds,
