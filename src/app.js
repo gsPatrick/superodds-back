@@ -2,12 +2,12 @@
 require('dotenv').config();
 
 const express = require('express');
-const cron = require('node-cron'); // Importa o node-cron
+const cron = require('node-cron');
 const mainRoutes = require('./routes/index');
 const db = require('./models');
-const oddsCollectorService = require('./features/odds-collector/odds-collector.service'); // Importa o serviço de odds normais
-const superOddsCollectorService = require('./features/super-odds-collector/super-odds-collector.service'); // Importa o serviço de super odds
-const telegramNotifierService = require('./features/telegram-notifier/telegram-notifier.service'); // Importa o serviço de notificação
+const oddsCollectorService = require('./features/odds-collector/odds-collector.service');
+const superOddsCollectorService = require('./features/super-odds-collector/super-odds-collector.service');
+const telegramNotifierService = require('./features/telegram-notifier/telegram-notifier.service');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,33 +22,35 @@ app.get('/', (req, res) => {
 app.use('/api', mainRoutes);
 
 // Sincroniza o banco de dados e depois inicia o servidor
-db.sequelize.sync({ force: false }) // 'force: true' apaga e recria tabelas. Mantenha 'false' após o primeiro uso.
+// ATENÇÃO: 'force: true' IRÁ APAGAR E RECRIAR AS TABELAS.
+// USE APENAS PARA O SETUP INICIAL EM DESENVOLVIMENTO OU SE QUISER RESETAR O DB.
+// REVERTA PARA 'force: false' APÓS A PRIMEIRA EXECUÇÃO BEM-SUCEDIDA.
+db.sequelize.sync({ force: true }) // <--- ALTERADO PARA TRUE
   .then(() => {
-    console.log('Banco de dados sincronizado.');
+    console.log('Banco de dados sincronizado (tabelas recriadas!).'); // Alerta de recriação
 
     // --- CONFIGURAÇÃO DOS CRON JOBS ---
 
-    // 1. Cron Job para Coleta de Odds Normais (diário, como no guia original)
+    // 1. Cron Job para Coleta de Odds Normais (diário)
     // Roda à 00:00 (meia-noite) todos os dias.
-    cron.schedule('0 0 * * *', async () => { // Formato: minuto hora diaDoMes mes diaDaSemana
+    cron.schedule('0 0 * * *', async () => {
       console.log('Iniciando cron job: Coleta diária de odds normais...');
       try {
-        await oddsCollectorService.fetchOdds('soccer', 'eu', 'h2h'); // Exemplo: coleta futebol europeu h2h
-        // Você pode adicionar mais chamadas aqui para outros esportes/regiões/mercados
+        await oddsCollectorService.fetchOdds('soccer', 'eu', 'h2h');
         console.log('Coleta diária de odds normais concluída.');
       } catch (error) {
         console.error('Erro no cron job de coleta de odds normais:', error.message);
       }
     }, {
       scheduled: true,
-      timezone: "America/Sao_Paulo" // Defina o fuso horário para o agendamento
+      timezone: "America/Sao_Paulo"
     });
 
 
-    // 2. Cron Job para Coleta de SUPER ODDS (mais frequente, para "tempo real")
-    // Roda a cada 5 minutos.
-    cron.schedule('*/5 * * * *', async () => { // Formato: a cada 5 minutos
-      console.log('Iniciando cron job: Coleta de super odds...');
+    // 2. Cron Job para Coleta de SUPER ODDS (a cada 1 minuto para "tempo real")
+    // Roda a cada 1 minuto.
+    cron.schedule('* * * * *', async () => {
+      console.log('Iniciando cron job: Coleta de super odds (a cada minuto)...');
       try {
         await superOddsCollectorService.fetchAndSaveSuperOdds();
         console.log('Coleta de super odds concluída.');
@@ -57,7 +59,7 @@ db.sequelize.sync({ force: false }) // 'force: true' apaga e recria tabelas. Man
       }
     }, {
       scheduled: true,
-      timezone: "America/Sao_Paulo" // Defina o fuso horário para o agendamento
+      timezone: "America/Sao_Paulo"
     });
 
 
@@ -73,12 +75,11 @@ db.sequelize.sync({ force: false }) // 'force: true' apaga e recria tabelas. Man
       }
     }, {
       scheduled: true,
-      timezone: "America/Sao_Paulo" // Defina o fuso horário para o agendamento
+      timezone: "America/Sao_Paulo"
     });
 
     // --- FIM DA CONFIGURAÇÃO DOS CRON JOBS ---
 
-    // Inicia o servidor Express
     app.listen(PORT, () => {
       console.log(`Servidor Odds Collector API rodando na porta ${PORT}`);
       console.log(`Acesse: http://localhost:${PORT}`);

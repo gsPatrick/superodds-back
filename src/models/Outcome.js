@@ -16,16 +16,18 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     bookmakerOddsId: { // Chave estrangeira para BookmakerOdds
-      type: DataTypes.DECIMAL, // Tipo correspondente ao ID de BookmakerOdds
+      type: DataTypes.UUID, // CORRIGIDO: Deve ser UUID para corresponder ao ID de BookmakerOdds
       allowNull: false,
       references: {
         model: 'bookmaker_odds', // Nome da tabela do modelo BookmakerOdds
         key: 'id',
-      }
+      },
+      onUpdate: 'CASCADE', // Opcional: Garante que atualizações na chave primária se propaguem
+      onDelete: 'CASCADE', // Opcional: Garante que a exclusão da BookmakerOdds apague os Outcomes associados
     }
   }, {
     tableName: 'outcomes',
-    timestamps: false, // Não precisamos de timestamps para resultados individuais
+    timestamps: false,
   });
 
   return Outcome;
