@@ -1,4 +1,4 @@
-// src/features/telegram-notifier/telegram-notifier.service.js
+// src/features/telegram-notifier/telegram-notifier.service.js (COMPLETO E ATUALIZADO)
 const axios = require('axios');
 const db = require('../../models');
 const { Op } = require('sequelize');
@@ -12,8 +12,13 @@ if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
   console.warn('AVISO: Variáveis de ambiente TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configuradas. Notificações do Telegram serão desativadas.');
 }
 
+// Função de utilidade para pausar a execução
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /**
- * Envia uma mensagem para o Telegram.
+ * Envia uma mensagem para o Telegram, com tratamento de limite de requisições.
  * @param {string} text - O texto da mensagem a ser enviado.
  * @param {boolean} [disableWebPagePreview=true] - Desabilita a visualização de links na mensagem.
  */
@@ -34,12 +39,20 @@ async function sendTelegramMessage(text, disableWebPagePreview = true) {
     console.log('[TelegramNotifierService] Mensagem enviada com sucesso para o Telegram.');
   } catch (error) {
     if (error.response) {
+      if (error.response.status === 429) {
+        const retryAfter = error.response.data.parameters?.retry_after || 5; // Padrão 5 segundos
+        console.warn(`[TelegramNotifierService] Limite de requisições do Telegram atingido. Reagendando envio após ${retryAfter} segundos.`);
+        await sleep(retryAfter * 1000); // Espera o tempo solicitado
+        // Tenta novamente após a espera
+        return sendTelegramMessage(text, disableWebPagePreview);
+      }
       console.error('[TelegramNotifierService] Erro ao enviar mensagem para o Telegram:', error.response.status, error.response.data);
     } else if (error.request) {
       console.error('[TelegramNotifierService] Nenhuma resposta recebida do Telegram API:', error.message);
     } else {
       console.error('[TelegramNotifierService] Erro ao configurar requisição para Telegram API:', error.message);
     }
+    throw error; // Propaga o erro para o chamador, se não for 429
   }
 }
 
@@ -73,7 +86,7 @@ async function getTodaysEventsForReport(daysAhead = 1) {
           ],
         },
       ],
-      limit: 10 // Limitar o número de eventos para evitar mensagens muito longas
+      limit: 10
     });
     return events;
   } catch (error) {
@@ -93,10 +106,10 @@ async function getActiveSuperOddsForReport(limit = 5) {
     const superOdds = await db.SuperOdd.findAll({
       where: {
         expireAtTimestamp: {
-          [Op.gt]: now, // Garante que a odd ainda não expirou
+          [Op.gt]: now,
         },
       },
-      order: [['boostedOdd', 'DESC']], // Ordena as maiores odds primeiro
+      order: [['boostedOdd', 'DESC']],
       limit: limit,
     });
     return superOdds;
@@ -156,25 +169,22 @@ function formatSuperOddsMessage(superOdds) {
     superOdds.forEach(sOdd => {
       const expireTimeFormatted = moment(sOdd.expireAtTimestamp).tz('America/Sao_Paulo').format('DD/MM HH:mm');
       const gameNameDisplay = sOdd.gameName ? sOdd.gameName.replace(/ vs\.? /g, ' X ').replace(/ vs /g, ' X ').trim() : 'Evento Desconhecido';
-      message += `⚡️ *${gameNameDisplay}*\n`; // Jogo primeiro, com emoji de raio
+      message += `⚡️ *${gameNameDisplay}*\n`;
 
-      // Lógica para display do mercado e seleção similar ao alerta individual, mas mais compacto
-      if (sOdd.selectionName && sOdd.selectionName.toLowerCase() !== sOdd.marketName?.toLowerCase()) {
-          message += `  ⚽️ ${sOdd.selectionName}\n`;
-          if (sOdd.marketName) {
-              message += `  🎯 ${sOdd.marketName}\n`;
+      if (sOdd.selectionName) {
+          message += `⚽️ ${sOdd.selectionName}`;
+          if (sOdd.marketName && sOdd.marketName.toLowerCase() !== sOdd.selectionName.toLowerCase()) {
+              message += `\n🎯 ${sOdd.marketName}`;
           }
       } else if (sOdd.marketName) {
-          message += `  ⚽️ ${sOdd.marketName}\n`;
-      } else if (sOdd.selectionName) {
-          message += `  ⚽️ ${sOdd.selectionName}\n`;
+          message += `⚽️ ${sOdd.marketName}`;
       }
 
 
-      message += `  💰 ${sOdd.originalOdd} 》 ${sOdd.boostedOdd}\n`;
-      message += `  *${sOdd.provider}*\n`;
-      message += `  👉 [CLIQUE AQUI](${sOdd.link})\n`;
-      message += `  Vence em: ${expireTimeFormatted}\n\n`;
+      message += `\n💰 ${sOdd.originalOdd} 》 ${sOdd.boostedOdd}\n`;
+      message += `*${sOdd.provider}*\n`;
+      message += `👉 [CLIQUE AQUI](${sOdd.link})\n`;
+      message += `Vence em: ${expireTimeFormatted}\n\n`;
     });
   }
   return message;
@@ -190,44 +200,34 @@ async function sendSuperOddAlert(superOdd) {
         return;
     }
 
-    // Garante que o nome do jogo seja formatado como no exemplo "Time A X Time B"
+    // CORRIGIDO: Usa superOdd.id para o log
+    console.log(`[TelegramNotifierService] Enviando alerta para nova super odd: ${superOdd.id}`);
+
     const cleanedGameName = superOdd.gameName ? superOdd.gameName.replace(/ vs\.? /g, ' X ').replace(/ vs /g, ' X ').trim() : 'Evento Desconhecido';
 
-    let message = `⚡️ *${cleanedGameName}*\n`; // Lightning bolt e nome do jogo em negrito
+    let message = `⚡️ *${cleanedGameName}*\n`;
 
-    // Adiciona o nome da seleção e o nome do mercado, com emojis apropriados
-    // A ordem e qual campo é exibido primeiro pode variar, baseando-se no exemplo da imagem.
-    // O exemplo mostra '2:0' (selection_name) e depois 'Resultado Correto' (market_name).
-    // Vou usar selectionName e, se marketName for diferente e existir, adicioná-lo.
     if (superOdd.selectionName) {
         message += `⚽️ ${superOdd.selectionName}`;
-        if (superOdd.marketName && superOdd.marketName.toLowerCase() !== superOdd.selectionName.toLowerCase()) { // Evita duplicar se forem iguais
+        if (superOdd.marketName && superOdd.marketName.toLowerCase() !== superOdd.selectionName.toLowerCase()) {
             message += `\n🎯 ${superOdd.marketName}`;
         }
-    } else if (superOdd.marketName) { // Se não tiver selectionName mas tiver marketName
+    } else if (superOdd.marketName) {
         message += `⚽️ ${superOdd.marketName}`;
     }
 
-    // Odds original e turbinada, com emoji de dinheiro e '》'
     message += `\n💰 ${superOdd.originalOdd} 》 ${superOdd.boostedOdd}`;
 
-    // Nome da casa de aposta
     message += `\n\n*${superOdd.provider}*\n`;
 
-    // Chamada para ação com link de afiliado
     message += `👉 [CLIQUE AQUI](${superOdd.link})`;
 
-    // Disclaimer de responsabilidade
     message += `\nJogue com responsabilidade`;
 
-    // A informação de expiração não está diretamente no bloco da imagem,
-    // mas é crucial para super odds. Vou mantê-la no final.
     const expireTimeFormatted = moment(superOdd.expireAtTimestamp).tz('America/Sao_Paulo').format('DD/MM HH:mm');
     message += `\nVálido até: ${expireTimeFormatted}`;
 
-
-    console.log(`[TelegramNotifierService] Enviando alerta para nova super odd: ${superOdd.unique_key}`);
-    await sendTelegramMessage(message, false); // Desabilita preview de link para ficar mais limpo visualmente
+    await sendTelegramMessage(message, false);
 }
 
 
@@ -249,7 +249,7 @@ async function sendDailyOddsSummary() {
   const superOddsSection = formatSuperOddsMessage(activeSuperOdds);
   if (superOddsSection) {
     if (fullMessage) {
-      fullMessage += '\n---\n\n'; // Separador entre seções
+      fullMessage += '\n---\n\n';
     }
     fullMessage += superOddsSection;
   }

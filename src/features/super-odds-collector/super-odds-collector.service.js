@@ -4,10 +4,32 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const moment = require('moment-timezone');
 const telegramNotifierService = require('../telegram-notifier/telegram-notifier.service');
-const SUPER_ODDS_AFFILIATED_PROVIDERS = require('../constants/superOddsProviders'); // Importa a constante
+const SUPER_ODDS_AFFILIATED_PROVIDERS = require('../../constants/superOddsProviders');
 
 const SUPER_ODDS_API_URL = 'https://api.craquestats.com.br/api/super_odds';
 
+// Mapeamento dos SEUS links de afiliado fixos para Super Odds
+const SUPER_ODDS_AFFILIATED_LINKS = {
+    'stake': { name: 'Stake', link: 'https://bdeal.io/stake/116387/1' },
+    'superbet': { name: 'Superbet', link: 'https://bdeal.io/Superbet/110998/1' },
+    'mc_games': { name: 'McGames', link: 'https://bdeal.io/mcgames/125292/1' },
+    'betano': { name: 'Betano', link: 'https://bdeal.io/Betano/124683/1' },
+    'betfair': { name: 'Betfair', link: 'https://bdeal.io/Betfair/61765/1' },
+    'kto': { name: 'KTO', link: 'https://bdeal.io/kto/127471/1' },
+    'novibet': { name: 'Novibet', link: 'https://bdeal.io/Superbet/110998/1' }, // Confirme este link
+    'betmgm': { name: 'BetMGM', link: 'https://bdeal.io/betmgm/123274/1' },
+    'betsson': { name: 'Betsson', link: 'https://bdeal.io/Betsson/127093/1' },
+    'bet365': { name: 'Bet365', link: 'https://www.bet365.bet.br/olp/open-account?affiliate=365_03806795' }, // Placeholder, ajustar dps
+    'marjo': { name: 'MarjoSports', link: 'https://go.affiliapass.com?id=686d1206d7b5de00154ce5f4' },
+    'esportiva': { name: 'EsportivaBet', link: 'https://go.aff.esportiva.bet/vi3sck7h' },
+    'bateubet': { name: 'BateuBet', link: 'https://go.affiliapass.com?id=686d1170d7b5de00154ce5ef' },
+};
+
+
+// Função de utilidade para pausar a execução
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 /**
  * Busca as super odds da API externa e as salva no banco de dados.
@@ -29,32 +51,27 @@ async function fetchAndSaveSuperOdds() {
           const gameTimestamp = moment.unix(superOdd.game_timestamp).toDate();
           const expireAtTimestamp = moment.unix(superOdd.expire_at_timestamp).toDate();
 
-          // Filtra odds que já expiraram
           if (new Date() >= expireAtTimestamp) {
             continue;
           }
 
-          // --- NOVO: Obtém o link de afiliado do nosso mapa centralizado ---
-          // Verifica se o provedor está na nossa lista de afiliados e pega o link
-          const affiliatedProviderInfo = SUPER_ODDS_AFFILIATED_PROVIDERS[superOdd.provider_id];
+          const affiliatedProviderInfo = SUPER_ODDS_AFFILIATED_LINKS[superOdd.provider_id]; // Usando o novo mapa de links
           if (!affiliatedProviderInfo) {
               console.warn(`[SuperOddsCollectorService] Provedor '${superOdd.provider_id}' não está na lista de afiliados configurados. Pulando esta super odd.`);
               continue;
           }
           const affiliateLink = affiliatedProviderInfo.link;
-          // --- FIM NOVO ---
 
-          // Cria ou encontra a Super Odd no banco de dados
           const [dbSuperOdd, created] = await db.SuperOdd.findOrCreate({
             where: { id: superOdd.unique_key },
             defaults: {
               provider: superOdd.provider,
-              link: affiliateLink, // AGORA USA O NOSSO LINK DE AFILIADO
+              link: affiliateLink,
               sportId: superOdd.sport_id,
               boostedOdd: parseFloat(superOdd.boosted_odd),
               originalOdd: parseFloat(superOdd.original_odd),
               descriptionForSeo: superOdd.description_for_seo,
-              providerId: superOdd.provider_id, // Salva o provider_id para fácil filtragem
+              providerId: superOdd.provider_id,
               marketName: superOdd.market_name,
               selectionName: superOdd.selection_name,
               competitionName: superOdd.competition_name,
@@ -65,10 +82,9 @@ async function fetchAndSaveSuperOdds() {
           });
 
           if (!created) {
-            // Se já existe, atualiza os dados
             await dbSuperOdd.update({
               provider: superOdd.provider,
-              link: affiliateLink, // Garante que o link de afiliado seja sempre o nosso
+              link: affiliateLink,
               sportId: superOdd.sport_id,
               boostedOdd: parseFloat(superOdd.boosted_odd),
               originalOdd: parseFloat(superOdd.original_odd),
@@ -84,11 +100,15 @@ async function fetchAndSaveSuperOdds() {
           } else {
             console.log(`[SuperOddsCollectorService] Nova super odd salva: ${superOdd.unique_key}`);
             await telegramNotifierService.sendSuperOddAlert(dbSuperOdd);
+            // ADICIONA UMA PEQUENA PAUSA APÓS ENVIAR CADA ALERTA PARA NÃO SOBRECARREGAR O TELEGRAM
+            await sleep(200); // Pausa de 200 milissegundos (0.2 segundos) entre cada envio
           }
           processedCount++;
 
         } catch (dbError) {
           console.error(`[SuperOddsCollectorService] ERRO ao processar ou salvar super odd ${superOdd.unique_key} no banco de dados:`, dbError.message);
+          // Podemos adicionar uma pausa aqui também para evitar spam de erros no log se for um problema massivo
+          await sleep(50);
         }
       }
       return processedCount;
@@ -103,11 +123,10 @@ async function fetchAndSaveSuperOdds() {
       throw new Error(`Erro na API CraqueStats: Status ${error.response.status} - ${error.response.data.message || 'Erro desconhecido'}`);
     } else if (error.request) {
       console.error('[SuperOddsCollectorService] Nenhuma resposta recebida da CraqueStats API:', error.message);
-      throw new Error('Não foi possível conectar à CraqueStats API. Verifique sua conexão com a internet ou a URL da API.');
     } else {
       console.error('[SuperOddsCollectorService] Erro ao configurar requisição para CraqueStats API ou erro interno:', error.message);
-      throw new Error(`Erro interno no serviço de coleta de super odds: ${error.message}`);
     }
+    throw error;
   }
 }
 
@@ -126,32 +145,27 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
   const whereClause = {};
   const orderClause = [];
 
-  // 1. Filtrar por casas de apostas (somente as afiliadas e, opcionalmente, uma específica)
-  const affiliatedProviderIds = Object.keys(SUPER_ODDS_AFFILIATED_PROVIDERS);
+  const affiliatedProviderIds = Object.keys(SUPER_ODDS_AFFILIATED_LINKS);
   whereClause.providerId = {
-      [Op.in]: affiliatedProviderIds // Garante que só liste casas afiliadas
+      [Op.in]: affiliatedProviderIds
   };
 
-  if (provider && provider !== 'Todas') { // 'Todas' é o valor padrão da UI, não filtrar se for ele
-    // Para filtrar por nome de provedor (display name), pois o frontend envia o nome
+  if (provider && provider !== 'Todas') {
     whereClause.provider = provider;
   }
 
-  // 2. Filtrar por odd máxima
   if (maxOdd) {
     whereClause.boostedOdd = {
       [Op.lte]: parseFloat(maxOdd),
     };
   }
 
-  // 3. Ocultar odds expiradas (padrão é ocultar, se hideExpired for false, mostra todas)
   if (hideExpired) {
     whereClause.expireAtTimestamp = {
       [Op.gt]: new Date(),
     };
   }
 
-  // 4. Ordenar
   switch (sortBy) {
     case 'boosted_desc':
       orderClause.push(['boostedOdd', 'DESC']);
@@ -159,19 +173,19 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
     case 'boosted_asc':
       orderClause.push(['boostedOdd', 'ASC']);
       break;
-    case 'game_time_asc': // Novo critério: por data de início do jogo
+    case 'game_time_asc':
       orderClause.push(['gameTimestamp', 'ASC']);
       break;
-    case 'game_time_desc': // Novo critério: por data de início do jogo
+    case 'game_time_desc':
         orderClause.push(['gameTimestamp', 'DESC']);
         break;
-    case 'expire_asc': // Por data de expiração (útil para ver as que vão sair do ar)
+    case 'expire_asc':
         orderClause.push(['expireAtTimestamp', 'ASC']);
         break;
-    case 'expire_desc': // Por data de expiração (útil para ver as que vão sair do ar)
+    case 'expire_desc':
         orderClause.push(['expireAtTimestamp', 'DESC']);
         break;
-    default: // Padrão: por data de expiração ascendente, depois pela boostedOdd descendente
+    default:
       orderClause.push(['expireAtTimestamp', 'ASC']);
       orderClause.push(['boostedOdd', 'DESC']);
       break;
@@ -181,7 +195,7 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
     const superOdds = await db.SuperOdd.findAll({
       where: whereClause,
       order: orderClause,
-      limit: parseInt(limit), // Garante que o limite seja um número
+      limit: parseInt(limit),
     });
     return superOdds;
   } catch (error) {
@@ -196,7 +210,8 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
  * @returns {Array<{id: string, name: string}>} Lista de provedores.
  */
 function getAffiliatedProvidersList() {
-    return Object.entries(SUPER_ODDS_AFFILIATED_PROVIDERS).map(([id, data]) => ({
+    // Usando SUPER_ODDS_AFFILIATED_LINKS como a fonte de verdade
+    return Object.entries(SUPER_ODDS_AFFILIATED_LINKS).map(([id, data]) => ({
         id: id,
         name: data.name
     }));
@@ -206,5 +221,5 @@ function getAffiliatedProvidersList() {
 module.exports = {
   fetchAndSaveSuperOdds,
   getLatestSuperOdds,
-  getAffiliatedProvidersList, // Exporta a nova função
+  getAffiliatedProvidersList,
 };
