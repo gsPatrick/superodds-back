@@ -4,7 +4,7 @@ const db = require('../../models');
 const { Op } = require('sequelize');
 const moment = require('moment-timezone');
 const telegramNotifierService = require('../telegram-notifier/telegram-notifier.service');
-const SUPER_ODDS_AFFILIATED_PROVIDERS = require('../../constants/superOddsProviders');
+const SUPER_ODDS_AFFILIATED_PROVIDERS = require('../constants/superOddsProviders');
 
 const SUPER_ODDS_API_URL = 'https://api.craquestats.com.br/api/super_odds';
 
