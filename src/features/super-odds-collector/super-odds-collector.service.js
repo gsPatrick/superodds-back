@@ -27,13 +27,7 @@ async function fetchAndSaveSuperOdds() {
         try {
           const gameTimestamp = moment.unix(superOdd.game_timestamp).toDate();
           const expireAtTimestamp = moment.unix(superOdd.expire_at_timestamp).toDate();
-
-          // MUDANÇA: Não vamos mais pular as expiradas aqui, a API precisa delas.
-          // A lógica de pular será feita apenas na busca se o filtro for ativado.
-          // if (new Date() >= expireAtTimestamp) {
-          //   continue;
-          // }
-
+          
           const affiliatedProviderInfo = SUPER_ODDS_AFFILIATED_PROVIDERS[superOdd.provider_id];
           
           if (!affiliatedProviderInfo) {
@@ -76,11 +70,15 @@ async function fetchAndSaveSuperOdds() {
               gameTimestamp: gameTimestamp,
               expireAtTimestamp: expireAtTimestamp,
             });
-            // console.log(`[SuperOddsCollectorService] Super odd ${superOdd.unique_key} atualizada.`); // Log opcional
           } else {
             console.log(`[SuperOddsCollectorService] Nova super odd salva: ${superOdd.unique_key}`);
-            await telegramNotifierService.sendSuperOddAlert(dbSuperOdd);
-            await sleep(200);
+            
+            if (new Date() < dbSuperOdd.expireAtTimestamp) {
+              await telegramNotifierService.sendSuperOddAlert(dbSuperOdd);
+              await sleep(200);
+            } else {
+              console.log(`[SuperOddsCollectorService] Nova super odd ${superOdd.unique_key} já está expirada. Não será notificada no Telegram.`);
+            }
           }
           processedCount++;
 
@@ -108,18 +106,10 @@ async function fetchAndSaveSuperOdds() {
   }
 }
 
-/**
- * Retorna as super odds do banco de dados com filtros.
- * @param {Object} filters - Objeto de filtros.
- * @param {number} [limit] - Limite de resultados (opcional).
- * @returns {Promise<Array>} Lista de objetos SuperOdd.
- */
-// MUDANÇA: Removido o 'limit = 20' padrão
 async function getLatestSuperOdds(filters = {}, limit) { 
-  // MUDANÇA: 'hideExpired' agora é 'false' por padrão
   const { provider, maxOdd, sortBy, hideExpired = false } = filters; 
   const whereClause = {};
-  const orderClause = [];
+  let orderClause = [];
 
   const affiliatedProviderIds = Object.keys(SUPER_ODDS_AFFILIATED_PROVIDERS);
   whereClause.providerId = {
@@ -135,8 +125,7 @@ async function getLatestSuperOdds(filters = {}, limit) {
       [Op.lte]: parseFloat(maxOdd),
     };
   }
-
-  // A lógica de filtro agora só é aplicada se `hideExpired` for explicitamente `true`
+  
   if (hideExpired) {
     whereClause.expireAtTimestamp = {
       [Op.gt]: new Date(),
@@ -156,17 +145,22 @@ async function getLatestSuperOdds(filters = {}, limit) {
     case 'game_time_desc':
         orderClause.push(['gameTimestamp', 'DESC']);
         break;
-    case 'expire_asc':
-        orderClause.push(['expireAtTimestamp', 'ASC']);
-        break;
+    // MUDANÇA CRÍTICA: 'expire_asc' agora é tratado pela lógica default
+    // para garantir a priorização de odds ativas.
+    // O 'expire_asc' vindo do front será pego pelo default.
     case 'expire_desc':
         orderClause.push(['expireAtTimestamp', 'DESC']);
         break;
     default:
-      // MUDANÇA: Ordenação padrão alterada para mostrar as que expiram mais tarde primeiro,
-      // garantindo que as ativas e relevantes apareçam no topo.
-      orderClause.push(['expireAtTimestamp', 'DESC']);
-      orderClause.push(['boostedOdd', 'DESC']);
+      // ORDENAÇÃO PADRÃO CORRIGIDA E INTELIGENTE
+      // 1. Prioridade 1: Agrupa as odds em ATIVAS (valor 1) e EXPIRADAS (valor 2). Ordena por este grupo.
+      orderClause.push([db.sequelize.literal('CASE WHEN "expireAtTimestamp" > NOW() THEN 1 ELSE 2 END'), 'ASC']);
+      
+      // 2. Prioridade 2: Para as odds ATIVAS (grupo 1), ordena pela data de expiração mais PRÓXIMA (ASC).
+      orderClause.push([db.sequelize.literal('CASE WHEN "expireAtTimestamp" > NOW() THEN "expireAtTimestamp" END'), 'ASC']);
+      
+      // 3. Prioridade 3: Para as odds EXPIRADAS (grupo 2), ordena pela data que expirou mais RECENTEMENTE (DESC).
+      orderClause.push([db.sequelize.literal('CASE WHEN "expireAtTimestamp" <= NOW() THEN "expireAtTimestamp" END'), 'DESC']);
       break;
   }
 
@@ -174,7 +168,6 @@ async function getLatestSuperOdds(filters = {}, limit) {
     const superOdds = await db.SuperOdd.findAll({
       where: whereClause,
       order: orderClause,
-      // MUDANÇA: O 'limit' só será aplicado se for passado um valor
       limit: limit ? parseInt(limit) : undefined,
     });
     return superOdds;

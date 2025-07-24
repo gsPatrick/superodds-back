@@ -20,9 +20,9 @@ function sleep(ms) {
 /**
  * Envia uma mensagem para o Telegram, com tratamento de limite de requisições.
  * @param {string} text - O texto da mensagem a ser enviado.
- * @param {boolean} [disableWebPagePreview=true] - Desabilita a visualização de links na mensagem.
+ * @param {boolean} [disableWebPagePreview=false] - Desabilita a visualização de links na mensagem.
  */
-async function sendTelegramMessage(text, disableWebPagePreview = true) {
+async function sendTelegramMessage(text, disableWebPagePreview = false) { // Alterado para false para mostrar preview do link
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('[TelegramNotifierService] Notificação do Telegram ignorada: token ou chat ID não configurados.');
     return;
@@ -40,10 +40,9 @@ async function sendTelegramMessage(text, disableWebPagePreview = true) {
   } catch (error) {
     if (error.response) {
       if (error.response.status === 429) {
-        const retryAfter = error.response.data.parameters?.retry_after || 5; // Padrão 5 segundos
+        const retryAfter = error.response.data.parameters?.retry_after || 5;
         console.warn(`[TelegramNotifierService] Limite de requisições do Telegram atingido. Reagendando envio após ${retryAfter} segundos.`);
-        await sleep(retryAfter * 1000); // Espera o tempo solicitado
-        // Tenta novamente após a espera
+        await sleep(retryAfter * 1000);
         return sendTelegramMessage(text, disableWebPagePreview);
       }
       console.error('[TelegramNotifierService] Erro ao enviar mensagem para o Telegram:', error.response.status, error.response.data);
@@ -52,13 +51,12 @@ async function sendTelegramMessage(text, disableWebPagePreview = true) {
     } else {
       console.error('[TelegramNotifierService] Erro ao configurar requisição para Telegram API:', error.message);
     }
-    throw error; // Propaga o erro para o chamador, se não for 429
+    throw error;
   }
 }
 
 /**
  * Busca eventos do dia para compor a mensagem do Telegram.
- * Pega eventos que começam hoje ou nos próximos N dias (ajustável).
  * @param {number} daysAhead - Quantos dias à frente para buscar eventos.
  * @returns {Promise<Array>} Lista de eventos com suas odds.
  */
@@ -180,7 +178,6 @@ function formatSuperOddsMessage(superOdds) {
           message += `⚽️ ${sOdd.marketName}`;
       }
 
-
       message += `\n💰 ${sOdd.originalOdd} 》 ${sOdd.boostedOdd}\n`;
       message += `*${sOdd.provider}*\n`;
       message += `👉 [CLIQUE AQUI](${sOdd.link})\n`;
@@ -194,41 +191,43 @@ function formatSuperOddsMessage(superOdds) {
  * Envia uma notificação concisa e formatada para uma única Super Odd, similar ao exemplo da imagem.
  * @param {Object} superOdd - O objeto SuperOdd recém-criado.
  */
+// ########################## MUDANÇA PRINCIPAL AQUI ##########################
 async function sendSuperOddAlert(superOdd) {
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
         console.warn('[TelegramNotifierService] Alerta de Super Odd ignorado: token ou chat ID não configurados.');
         return;
     }
 
-    // CORRIGIDO: Usa superOdd.id para o log
-    console.log(`[TelegramNotifierService] Enviando alerta para nova super odd: ${superOdd.id}`);
+    console.log(`[TelegramNotifierService] Montando e enviando alerta para nova super odd: ${superOdd.id}`);
 
-    const cleanedGameName = superOdd.gameName ? superOdd.gameName.replace(/ vs\.? /g, ' X ').replace(/ vs /g, ' X ').trim() : 'Evento Desconhecido';
+    const gameName = superOdd.gameName ? superOdd.gameName.trim() : 'Evento Desconhecido';
+    
+    // Inicia a construção da mensagem seguindo o novo layout
+    let message = `⚡️ *${gameName}*\n`;
 
-    let message = `⚡️ *${cleanedGameName}*\n`;
-
+    // Adiciona a seleção (⚽️) e o mercado (🎯) se existirem e forem diferentes
     if (superOdd.selectionName) {
-        message += `⚽️ ${superOdd.selectionName}`;
-        if (superOdd.marketName && superOdd.marketName.toLowerCase() !== superOdd.selectionName.toLowerCase()) {
-            message += `\n🎯 ${superOdd.marketName}`;
-        }
-    } else if (superOdd.marketName) {
-        message += `⚽️ ${superOdd.marketName}`;
+        message += `⚽️ ${superOdd.selectionName.trim()}\n`;
+    }
+    if (superOdd.marketName && superOdd.marketName.toLowerCase() !== (superOdd.selectionName || '').toLowerCase()) {
+        message += `🎯 ${superOdd.marketName.trim()}\n`;
     }
 
-    message += `\n💰 ${superOdd.originalOdd} 》 ${superOdd.boostedOdd}`;
+    // Adiciona a linha das odds
+    message += `💰 ${superOdd.originalOdd}  》 *${superOdd.boostedOdd}*\n\n`;
 
-    message += `\n\n*${superOdd.provider}*\n`;
+    // Adiciona o nome da casa de apostas e o link de afiliado
+    message += `*${superOdd.provider}*\n`;
+    message += `📲 [CLIQUE AQUI](${superOdd.link})\n\n`;
 
-    message += `👉 [CLIQUE AQUI](${superOdd.link})`;
+    // Adiciona os avisos de responsabilidade
+    message += `⚠️ Jogue com responsabilidade.\n`;
+    message += `🔞 Apenas para maiores de 18 anos.`;
 
-    message += `\nJogue com responsabilidade`;
-
-    const expireTimeFormatted = moment(superOdd.expireAtTimestamp).tz('America/Sao_Paulo').format('DD/MM HH:mm');
-    message += `\nVálido até: ${expireTimeFormatted}`;
-
+    // Envia a mensagem formatada para o Telegram
     await sendTelegramMessage(message, false);
 }
+// ########################## FIM DA MUDANÇA ##########################
 
 
 /**

@@ -9,7 +9,6 @@ const SUPER_ODDS_AFFILIATED_PROVIDERS = {
     'novibet': { name: 'Novibet', link: 'https://bdeal.io/Superbet/110998/1' }, // Verifique novamente este link para Novibet, pois é o mesmo da Superbet
     'betmgm': { name: 'BetMGM', link: 'https://bdeal.io/betmgm/123274/1' },
     'betsson': { name: 'Betsson', link: 'https://bdeal.io/Betsson/127093/1' },
-    // Removidas as entradas para 'stake', 'marjo', 'esportiva', 'bateubet' conforme sua solicitação.
 };
 
 module.exports = SUPER_ODDS_AFFILIATED_PROVIDERS;
