@@ -1,30 +1,13 @@
-// src/features/super-odds-collector/super-odds-collector.service.js (COMPLETO E ATUALIZADO)
+// src/features/super-odds-collector/super-odds-collector.service.js (COMPLETO E CORRIGIDO)
 const axios = require('axios');
 const db = require('../../models');
 const { Op } = require('sequelize');
 const moment = require('moment-timezone');
 const telegramNotifierService = require('../telegram-notifier/telegram-notifier.service');
+// IMPORTAÇÃO CORRETA E ÚNICA FONTE DA VERDADE
 const SUPER_ODDS_AFFILIATED_PROVIDERS = require('../constants/superOddsProviders');
 
 const SUPER_ODDS_API_URL = 'https://api.craquestats.com.br/api/super_odds';
-
-// Mapeamento dos SEUS links de afiliado fixos para Super Odds
-const SUPER_ODDS_AFFILIATED_LINKS = {
-    'stake': { name: 'Stake', link: 'https://bdeal.io/stake/116387/1' },
-    'superbet': { name: 'Superbet', link: 'https://bdeal.io/Superbet/110998/1' },
-    'mc_games': { name: 'McGames', link: 'https://bdeal.io/mcgames/125292/1' },
-    'betano': { name: 'Betano', link: 'https://bdeal.io/Betano/124683/1' },
-    'betfair': { name: 'Betfair', link: 'https://bdeal.io/Betfair/61765/1' },
-    'kto': { name: 'KTO', link: 'https://bdeal.io/kto/127471/1' },
-    'novibet': { name: 'Novibet', link: 'https://bdeal.io/Superbet/110998/1' }, // Confirme este link
-    'betmgm': { name: 'BetMGM', link: 'https://bdeal.io/betmgm/123274/1' },
-    'betsson': { name: 'Betsson', link: 'https://bdeal.io/Betsson/127093/1' },
-    'bet365': { name: 'Bet365', link: 'https://www.bet365.bet.br/olp/open-account?affiliate=365_03806795' }, // Placeholder, ajustar dps
-    'marjo': { name: 'MarjoSports', link: 'https://go.affiliapass.com?id=686d1206d7b5de00154ce5f4' },
-    'esportiva': { name: 'EsportivaBet', link: 'https://go.aff.esportiva.bet/vi3sck7h' },
-    'bateubet': { name: 'BateuBet', link: 'https://go.affiliapass.com?id=686d1170d7b5de00154ce5ef' },
-};
-
 
 // Função de utilidade para pausar a execução
 function sleep(ms) {
@@ -55,9 +38,12 @@ async function fetchAndSaveSuperOdds() {
             continue;
           }
 
-          const affiliatedProviderInfo = SUPER_ODDS_AFFILIATED_LINKS[superOdd.provider_id]; // Usando o novo mapa de links
+          // Usa o mapa de constantes para verificar se o provedor é um dos nossos afiliados
+          const affiliatedProviderInfo = SUPER_ODDS_AFFILIATED_PROVIDERS[superOdd.provider_id];
+          
           if (!affiliatedProviderInfo) {
-              console.warn(`[SuperOddsCollectorService] Provedor '${superOdd.provider_id}' não está na lista de afiliados configurados. Pulando esta super odd.`);
+              // Esta mensagem de log agora é crucial para ver quais casas estão sendo ignoradas.
+              console.warn(`[SuperOddsCollectorService] Provedor '${superOdd.provider_id}' não está na lista de afiliados. Pulando super odd.`);
               continue;
           }
           const affiliateLink = affiliatedProviderInfo.link;
@@ -100,14 +86,12 @@ async function fetchAndSaveSuperOdds() {
           } else {
             console.log(`[SuperOddsCollectorService] Nova super odd salva: ${superOdd.unique_key}`);
             await telegramNotifierService.sendSuperOddAlert(dbSuperOdd);
-            // ADICIONA UMA PEQUENA PAUSA APÓS ENVIAR CADA ALERTA PARA NÃO SOBRECARREGAR O TELEGRAM
-            await sleep(200); // Pausa de 200 milissegundos (0.2 segundos) entre cada envio
+            await sleep(200);
           }
           processedCount++;
 
         } catch (dbError) {
           console.error(`[SuperOddsCollectorService] ERRO ao processar ou salvar super odd ${superOdd.unique_key} no banco de dados:`, dbError.message);
-          // Podemos adicionar uma pausa aqui também para evitar spam de erros no log se for um problema massivo
           await sleep(50);
         }
       }
@@ -145,7 +129,7 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
   const whereClause = {};
   const orderClause = [];
 
-  const affiliatedProviderIds = Object.keys(SUPER_ODDS_AFFILIATED_LINKS);
+  const affiliatedProviderIds = Object.keys(SUPER_ODDS_AFFILIATED_PROVIDERS);
   whereClause.providerId = {
       [Op.in]: affiliatedProviderIds
   };
@@ -206,12 +190,10 @@ async function getLatestSuperOdds(filters = {}, limit = 20) {
 
 /**
  * Retorna uma lista de todas as casas de apostas afiliadas configuradas.
- * Útil para popular o dropdown de filtros no frontend.
  * @returns {Array<{id: string, name: string}>} Lista de provedores.
  */
 function getAffiliatedProvidersList() {
-    // Usando SUPER_ODDS_AFFILIATED_LINKS como a fonte de verdade
-    return Object.entries(SUPER_ODDS_AFFILIATED_LINKS).map(([id, data]) => ({
+    return Object.entries(SUPER_ODDS_AFFILIATED_PROVIDERS).map(([id, data]) => ({
         id: id,
         name: data.name
     }));
