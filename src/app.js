@@ -2,6 +2,7 @@
 require('dotenv').config();
 
 const express = require('express');
+const cors = require('cors'); // Importa o pacote cors
 const cron = require('node-cron');
 const mainRoutes = require('./routes/index');
 const db = require('./models');
@@ -11,6 +12,14 @@ const telegramNotifierService = require('./features/telegram-notifier/telegram-n
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// --- CONFIGURAÇÃO DO CORS ---
+// Habilita o CORS para TODAS as origens e rotas.
+// Em produção, você pode restringir a origem para o domínio do seu front-end:
+// app.use(cors({ origin: 'https://seu-dominio-frontend.com' }));
+app.use(cors()); // <--- ADICIONADO AQUI
+
+// --- FIM DA CONFIGURAÇÃO DO CORS ---
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -22,12 +31,11 @@ app.get('/', (req, res) => {
 app.use('/api', mainRoutes);
 
 // Sincroniza o banco de dados e depois inicia o servidor
-// ATENÇÃO: 'force: true' IRÁ APAGAR E RECRIAR AS TABELAS.
-// USE APENAS PARA O SETUP INICIAL EM DESENVOLVIMENTO OU SE QUISER RESETAR O DB.
-// REVERTA PARA 'force: false' APÓS A PRIMEIRA EXECUÇÃO BEM-SUCEDIDA.
-db.sequelize.sync({ force: true }) // <--- ALTERADO PARA TRUE
+// ATENÇÃO: Se você precisar resetar o banco de dados, mude para 'force: true' temporariamente.
+// MANTENHA 'force: false' para operação normal.
+db.sequelize.sync({ force: false }) 
   .then(() => {
-    console.log('Banco de dados sincronizado (tabelas recriadas!).'); // Alerta de recriação
+    console.log('Banco de dados sincronizado.');
 
     // --- CONFIGURAÇÃO DOS CRON JOBS ---
 
@@ -47,8 +55,7 @@ db.sequelize.sync({ force: true }) // <--- ALTERADO PARA TRUE
     });
 
 
-    // 2. Cron Job para Coleta de SUPER ODDS (a cada 1 minuto para "tempo real")
-    // Roda a cada 1 minuto.
+    // 2. Cron Job para Coleta de SUPER ODDS (a cada 1 minuto)
     cron.schedule('* * * * *', async () => {
       console.log('Iniciando cron job: Coleta de super odds (a cada minuto)...');
       try {
