@@ -6,7 +6,7 @@ const SUPER_ODDS_AFFILIATED_PROVIDERS = {
     'betano': { name: 'Betano', link: 'https://bdeal.io/Betano/124683/1' },
     'betfair': { name: 'Betfair', link: 'https://bdeal.io/Betfair/61765/1' },
     'kto': { name: 'KTO', link: 'https://bdeal.io/kto/127471/1' },
-    'novibet': { name: 'Novibet', link: 'https://bdeal.io/Superbet/110998/1' }, // Verifique novamente este link para Novibet, pois é o mesmo da Superbet
+    'novibet': { name: 'Novibet', link: 'https://bdeal.io/novibet/111009/1' }, // Verifique novamente este link para Novibet, pois é o mesmo da Superbet
     'betmgm': { name: 'BetMGM', link: 'https://bdeal.io/betmgm/123274/1' },
     'betsson': { name: 'Betsson', link: 'https://bdeal.io/Betsson/127093/1' },
 };

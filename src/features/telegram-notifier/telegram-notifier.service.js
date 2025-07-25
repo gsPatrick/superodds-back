@@ -200,15 +200,17 @@ async function sendSuperOddAlert(superOdd) {
 
     console.log(`[TelegramNotifierService] Montando e enviando alerta para nova super odd: ${superOdd.id}`);
 
-    const gameName = superOdd.gameName ? superOdd.gameName.trim() : 'Evento Desconhecido';
+    const gameName = superOdd.gameName ? superOdd.gameName.replace(/ vs\.? /g, ' vs. ').replace(/ vs /g, ' vs. ').trim() : 'Evento Desconhecido';
+    const expireTimeFormatted = moment(superOdd.expireAtTimestamp).tz('America/Sao_Paulo').format('DD/MM HH[h]mm');
     
     // Inicia a construção da mensagem seguindo o novo layout
     let message = `⚡️ *${gameName}*\n`;
 
-    // Adiciona a seleção (⚽️) e o mercado (🎯) se existirem e forem diferentes
+    // Adiciona a seleção (⚽️)
     if (superOdd.selectionName) {
         message += `⚽️ ${superOdd.selectionName.trim()}\n`;
     }
+    // Adiciona o mercado (🎯) se existir e for diferente da seleção
     if (superOdd.marketName && superOdd.marketName.toLowerCase() !== (superOdd.selectionName || '').toLowerCase()) {
         message += `🎯 ${superOdd.marketName.trim()}\n`;
     }
@@ -219,6 +221,9 @@ async function sendSuperOddAlert(superOdd) {
     // Adiciona o nome da casa de apostas e o link de afiliado
     message += `*${superOdd.provider}*\n`;
     message += `📲 [CLIQUE AQUI](${superOdd.link})\n\n`;
+
+    // Adiciona a hora de expiração
+    message += `⏰ Expira em: ${expireTimeFormatted}\n\n`;
 
     // Adiciona os avisos de responsabilidade
     message += `⚠️ Jogue com responsabilidade.\n`;
