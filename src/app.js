@@ -70,21 +70,6 @@ db.sequelize.sync({ force: false })
     });
 
 
-    // 3. Cron Job para Envio do Resumo Diário para o Telegram
-    // Roda às 08:00 (8 da manhã) todos os dias.
-    cron.schedule('0 8 * * *', async () => {
-      console.log('Iniciando cron job: Envio de resumo diário para o Telegram...');
-      try {
-        await telegramNotifierService.sendDailyOddsSummary();
-        console.log('Envio de resumo diário para o Telegram concluído.');
-      } catch (error) {
-        console.error('Erro no cron job de envio para o Telegram:', error.message);
-      }
-    }, {
-      scheduled: true,
-      timezone: "America/Sao_Paulo"
-    });
-
     // --- FIM DA CONFIGURAÇÃO DOS CRON JOBS ---
 
     app.listen(PORT, () => {

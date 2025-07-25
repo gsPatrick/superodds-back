@@ -178,7 +178,7 @@ function formatSuperOddsMessage(superOdds) {
           message += `⚽️ ${sOdd.marketName}`;
       }
 
-      message += `\n💰 ${sOdd.originalOdd} 》 ${sOdd.boostedOdd}\n`;
+      message += `\n💰 ${parseFloat(sOdd.originalOdd).toFixed(2)} 》 ${parseFloat(sOdd.boostedOdd).toFixed(2)}\n`;
       message += `*${sOdd.provider}*\n`;
       message += `👉 [CLIQUE AQUI](${sOdd.link})\n`;
       message += `Vence em: ${expireTimeFormatted}\n\n`;
@@ -188,10 +188,9 @@ function formatSuperOddsMessage(superOdds) {
 }
 
 /**
- * Envia uma notificação concisa e formatada para uma única Super Odd, similar ao exemplo da imagem.
+ * Envia uma notificação concisa e formatada para uma única Super Odd.
  * @param {Object} superOdd - O objeto SuperOdd recém-criado.
  */
-// ########################## MUDANÇA PRINCIPAL AQUI ##########################
 async function sendSuperOddAlert(superOdd) {
     if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
         console.warn('[TelegramNotifierService] Alerta de Super Odd ignorado: token ou chat ID não configurados.');
@@ -216,7 +215,7 @@ async function sendSuperOddAlert(superOdd) {
     }
 
     // Adiciona a linha das odds
-    message += `💰 ${superOdd.originalOdd}  》 *${superOdd.boostedOdd}*\n\n`;
+    message += `💰 ${parseFloat(superOdd.originalOdd).toFixed(2)}  》 *${parseFloat(superOdd.boostedOdd).toFixed(2)}*\n\n`; // Garantir 2 casas decimais
 
     // Adiciona o nome da casa de apostas e o link de afiliado
     message += `*${superOdd.provider}*\n`;
@@ -232,11 +231,11 @@ async function sendSuperOddAlert(superOdd) {
     // Envia a mensagem formatada para o Telegram
     await sendTelegramMessage(message, false);
 }
-// ########################## FIM DA MUDANÇA ##########################
 
 
 /**
  * Funçao principal para disparar o resumo diário de todas as odds.
+ * Esta função é para ser chamada por um CRON JOB SEPARADO, se necessário, e NÃO pelo coletor de odds.
  */
 async function sendDailyOddsSummary() {
   console.log('[TelegramNotifierService] Iniciando envio do resumo diário de odds...');
@@ -262,8 +261,12 @@ async function sendDailyOddsSummary() {
     fullMessage = `*📊 Resumo Diário de Odds - ${moment().tz('America/Sao_Paulo').format('DD/MM/YYYY')}*\n\n` +
                   'Nenhum evento ou super odd encontrada para hoje/amanhã.';
   } else {
-    fullMessage += `\n\n_Dados coletados via APIs de Odds e CraqueStats_ [${moment().tz('America/Sao_Paulo').format('HH:mm')}]`;
+    // REMOVIDO: Linha "Dados coletados via APIs de Odds e CraqueStats" e pré-visualização de link do resumo diário.
   }
+
+  // ADICIONAR os avisos de responsabilidade para o resumo diário também, por boa prática
+  fullMessage += `\n\n⚠️ Jogue com responsabilidade.\n`;
+  fullMessage += `🔞 Apenas para maiores de 18 anos.`;
 
   await sendTelegramMessage(fullMessage, false);
 }
