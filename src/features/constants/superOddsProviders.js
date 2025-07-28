@@ -1,6 +1,6 @@
 // src/constants/superOddsProviders.js (COMPLETO E ATUALIZADO)
 const SUPER_ODDS_AFFILIATED_PROVIDERS = {
-    'bet365': { name: 'Bet365', link: 'https://www.bet365.bet.br/olp/open-account?affiliate=365_03806795' }, // Seu link afiliado Bet365
+    'bet365': { name: 'Bet365', link: 'https://www.bet365.bet.br/' }, // Seu link afiliado Bet365
     'superbet': { name: 'Superbet', link: 'https://bdeal.io/Superbet/110998/1' },
     'mc_games': { name: 'McGames', link: 'https://bdeal.io/mcgames/125292/1' }, // Note que a API CraqueStats usa 'mc_games'
     'betano': { name: 'Betano', link: 'https://bdeal.io/Betano/124683/1' },
