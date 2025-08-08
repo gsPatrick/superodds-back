@@ -23,6 +23,10 @@ function sleep(ms) {
  * @param {boolean} [disableWebPagePreview=false] - Desabilita a visualização de links na mensagem.
  */
 async function sendTelegramMessage(text, disableWebPagePreview = false) { // Alterado para false para mostrar preview do link
+ 
+  console.log('Token:', TELEGRAM_BOT_TOKEN);
+console.log('Chat ID:', TELEGRAM_CHAT_ID);
+
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
     console.warn('[TelegramNotifierService] Notificação do Telegram ignorada: token ou chat ID não configurados.');
     return;
