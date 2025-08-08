@@ -14,16 +14,9 @@ if (!ODDS_API_KEY) {
 
 // Mapeamento dos links de afiliado fixos
 const AFFILIATE_LINKS = {
-  'stake': 'https://bdeal.io/stake/116387/1',
-  'bet365': 'https://bdeal.io/bet365/GENERIC_LINK_PLACEHOLDER/1', // Substitua pelo link real da Bet365 no bdeal.io
   'superbet': 'https://bdeal.io/Superbet/110998/1',
   'mcgames': 'https://bdeal.io/mcgames/125292/1',
-  'betano': 'https://bdeal.io/Betano/124683/1',
-  'betfair': 'https://bdeal.io/Betfair/61765/1',
   'kto': 'https://bdeal.io/kto/127471/1',
-  'novibet': 'https://bdeal.io/Superbet/110998/1', // Verifique se este é o link correto para Novibet
-  'betmgm': 'https://bdeal.io/betmgm/123274/1',
-  'betsson': 'https://bdeal.io/Betsson/127093/1',
 };
 
 
@@ -63,7 +56,8 @@ async function fetchOdds(
   sportKey,
   region = 'eu',
   market = 'h2h',
-  bookmakersCsv = 'bet365,betfair,betmgm,betano,superbet,mcgames,novibet,kto,betsson,stake'
+  // ATUALIZADO: Altere o valor padrão aqui para conter apenas as casas desejadas.
+  bookmakersCsv = 'superbet,mcgames,kto'
 ) {
   try {
     console.log(`[OddsCollectorService] Buscando odds para ${sportKey}, região ${region}, mercado ${market}...`);
