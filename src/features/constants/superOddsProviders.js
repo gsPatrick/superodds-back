@@ -11,7 +11,6 @@ const SUPER_ODDS_AFFILIATED_PROVIDERS = {
     'betsson': { name: 'Betsson', link: 'https://bdeal.io/Betsson/127093/1' },
     'bateubet': { name: 'BateuBet', link: 'https://bdeal.io/BateuBet/119087/1' }, // CORRIGIDO: de 'bateu_bet' para 'bateubet'
     'esportiva': { name: 'EsportivaBet', link: 'https://bdeal.io/EsportivaBet/128422/1' }, // CORRIGIDO: de 'esportiva_bet' para 'esportiva' e nome ajustado
-    'marjo': { name: 'MarjoSports', link: 'https://go.affiliapass.com?id=686d1206d7b5de00154ce5f4' } // ADICIONADO: Provedor faltante. Substitua pelo seu link de afiliado.
 };
 
 module.exports = SUPER_ODDS_AFFILIATED_PROVIDERS;
