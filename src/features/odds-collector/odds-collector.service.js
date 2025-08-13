@@ -24,6 +24,8 @@ const AFFILIATE_LINKS = {
   'novibet': 'https://bdeal.io/Superbet/110998/1', // Verifique se este é o link correto para Novibet
   'betmgm': 'https://bdeal.io/betmgm/123274/1',
   'betsson': 'https://bdeal.io/Betsson/127093/1',
+  'bateubet': 'https://bdeal.io/BateuBet/119087/1' ,
+  'esportivabet': 'https://bdeal.io/EsportivaBet/128422/1' ,
 };
 
 
