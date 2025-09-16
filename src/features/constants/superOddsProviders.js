@@ -1,6 +1,6 @@
 // src/constants/superOddsProviders.js (COMPLETO E CORRIGIDO)
 const SUPER_ODDS_AFFILIATED_PROVIDERS = {
-    'bet365': { name: 'Bet365', link: 'https://www.bet365.bet.br/' },
+    'bet365': { name: 'Bet365', link: 'https://bdeal.io/bet365/132044/1' },
     'superbet': { name: 'Superbet', link: 'https://bdeal.io/Superbet/110998/1' },
     'mc_games': { name: 'McGames', link: 'https://bdeal.io/mcgames/125292/1' },
     'betano': { name: 'Betano', link: 'https://bdeal.io/Betano/124683/1' },
