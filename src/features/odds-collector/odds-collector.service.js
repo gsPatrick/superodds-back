@@ -15,7 +15,7 @@ if (!ODDS_API_KEY) {
 // Mapeamento dos links de afiliado fixos
 const AFFILIATE_LINKS = {
   'stake': 'https://bdeal.io/stake/116387/1',
-  'bet365': 'https://bdeal.io/bet365/GENERIC_LINK_PLACEHOLDER/1', // Substitua pelo link real da Bet365 no bdeal.io
+  'bet365': 'https://bdeal.io/bet365/132044/1', // Substitua pelo link real da Bet365 no bdeal.io
   'superbet': 'https://bdeal.io/Superbet/110998/1',
   'mcgames': 'https://bdeal.io/mcgames/125292/1',
   'betano': 'https://bdeal.io/Betano/124683/1',
